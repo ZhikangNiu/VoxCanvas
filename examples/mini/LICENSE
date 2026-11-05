@@ -1,0 +1,26 @@
+License of the data in examples/mini/
+====================================
+
+The files in this directory (audio/*.mp3, manifest.jsonl, aligned.jsonl and the clip table in README.md)
+are derived from the Emilia dataset and are licensed under the Creative Commons Attribution-NonCommercial
+4.0 International License (CC BY-NC 4.0), the license of Emilia:
+https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+The MIT License of the code in this repository does not apply to these files.
+
+Source
+  Emilia, https://huggingface.co/datasets/amphion/Emilia-Dataset
+  Haorui He, Zengqiang Shang, Chaoren Wang, Xuyuan Li, Yicheng Gu, Hua Hua, Liwei Liu, Chen Yang, Jiaqi Li,
+  Peiyang Shi, Yuancheng Wang, Kai Chen, Pengyuan Zhang, Zhizheng Wu. "Emilia: An Extensive, Multilingual,
+  and Diverse Speech Dataset for Large-Scale Speech Generation." IEEE SLT, 2024.
+
+Changes
+  The audio clips are unmodified copies of 20 Emilia clips (Emilia ZH and EN subsets). The transcripts and
+  word timestamps are new: they were produced with Qwen3-ASR-1.7B and Qwen3-ForcedAligner-0.6B.
+
+Notice reproduced from the Emilia dataset card
+  "Please note that Emilia does not own the copyright to the audio files; the copyright remains with the
+  original owners of the videos or audio. Users are permitted to use Emilia dataset only for non-commercial
+  purposes under the CC BY-NC-4.0 license."
+
+Use of these files is also subject to the Emilia terms of access shown on the dataset page above.

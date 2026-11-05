@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voxcanvas"
+version = "0.1.0"
+description = "VoxCanvas-41M data pipeline: instruction-based speech editing pairs from real speech"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Zhikang Niu" },
+    { name = "Wenming Tu" },
+    { name = "Yalin Li" },
+    { name = "Yanru Huo" },
+    { name = "Junxi Liu" },
+    { name = "Tianrui Wang" },
+    { name = "Ruiqi Yan" },
+    { name = "Junxuan Liang" },
+    { name = "Zilong Zheng" },
+    { name = "Ziyang Ma" },
+    { name = "Xie Chen" },
+]
+# The lock and every measured result use Python 3.10; newer versions are untested.
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "f5-tts==1.1.20",
+    "torch==2.7.0",
+    "torchaudio==2.7.0",
+    # Required by f5-tts; torchcodec declares no torch requirement, and 0.4-0.5 are the builds for torch 2.7.
+    "torchcodec>=0.4,<0.6",
+    "qwen-asr==0.0.6",
+    "openai>=1.0",
+    "python-dotenv",
+    "jieba==0.42.1",
+    "pypinyin==0.55.0",
+    "jiwer>=4.0",
+    "soundfile",
+    "tqdm",
+    "audioread",
+    "cached-path",
+    "omegaconf",
+    "vocos",
+]
+
+[project.urls]
+Homepage = "https://zhikangniu.github.io/voxcanvas"
+
+[dependency-groups]
+dev = ["pytest", "numpy", "ruff==0.17.3", "pre-commit"]
+
+[tool.uv.sources]
+f5-tts = { path = "third_party/F5-TTS", editable = true }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["third_party", "agent_space"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Long prompt lines are intentional.
+"src/voxcanvas/annotate/prompts.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+known-first-party = ["voxcanvas"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

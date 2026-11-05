@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3  # keep equal to the ruff pin in pyproject.toml
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+        exclude: ^(third_party/|examples/mini/audio/)
+      - id: trailing-whitespace
+        exclude: ^(third_party/|examples/mini/audio/)

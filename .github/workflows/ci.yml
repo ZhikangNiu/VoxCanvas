@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: false  # the locked install is ~7 GB (CUDA torch 2.7, nvidia-*, triton); too big to cache
+      - run: uv sync --locked
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: uv run --locked pytest -q
