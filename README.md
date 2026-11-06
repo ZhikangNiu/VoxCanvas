@@ -4,7 +4,7 @@
 
 **VoxCanvas-41M: A Large-Scale Bilingual Dataset for Instruction-Based Speech Editing and Its Learning Dynamics**
 
-[![Demo](https://img.shields.io/badge/Demo-Page-blue?logo=googlechrome&logoColor=white)](https://zhikangniu.github.io/voxcanvas) [![Paper](https://img.shields.io/badge/Paper-arXiv-b31b1b?logo=arxiv&logoColor=white)](https://arxiv.org/abs/XXXX.XXXXX) [![Dataset](https://img.shields.io/badge/Dataset-VoxCanvas--41M-ffcc4d?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/zkniu/VoxCanvas) [![Code License](https://img.shields.io/badge/Code_License-MIT-green)](LICENSE)
+[![Demo](https://img.shields.io/badge/Demo-Page-blue?logo=googlechrome&logoColor=white)](https://zhikangniu.github.io/voxcanvas) [![Paper](https://img.shields.io/badge/Paper-arXiv-b31b1b?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2611.08251) [![Dataset](https://img.shields.io/badge/Dataset-VoxCanvas--41M-ffcc4d?logo=huggingface&logoColor=black)](https://huggingface.co/datasets/zkniu/VoxCanvas) [![Code License](https://img.shields.io/badge/Code_License-MIT-green)](LICENSE)
 
 </div>
 
@@ -226,12 +226,12 @@ Resuming, re-sharding and throughput are covered in [docs/pipeline.md §1](docs/
 ## Citation
 
 ```bibtex
-@misc{niu2026voxcanvas,
+@article{niu2026voxcanvas,
   title        = {VoxCanvas-41M: A Large-Scale Bilingual Dataset for Instruction-Based Speech Editing and Its Learning Dynamics},
   author       = {Niu, Zhikang and Tu, Wenming and Li, Yalin and Huo, Yanru and Liu, Junxi and Wang, Tianrui and Yan, Ruiqi
                   and Liang, Junxuan and Zheng, Zilong and Ma, Ziyang and Chen, Xie},
-  year         = {2026},
-  howpublished = {\url{https://zhikangniu.github.io/voxcanvas}}
+  journal      = {arXiv preprint arXiv:2611.08251},
+  year         = {2026}
 }
 ```
 
