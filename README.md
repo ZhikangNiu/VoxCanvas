@@ -238,7 +238,7 @@ Resuming, re-sharding and throughput are covered in [docs/pipeline.md §1](docs/
 @article{niu2026voxcanvas,
   title        = {VoxCanvas-41M: A Large-Scale Bilingual Dataset for Instruction-Based Speech Editing and Its Learning Dynamics},
   author       = {Niu, Zhikang and Tu, Wenming and Li, Yalin and Huo, Yanru and Liu, Junxi and Wang, Tianrui and Yan, Ruiqi
-                  and Liang, Junxuan and Ma, Ziyang and Zheng, Zilong and Chen, Xie},
+                  and Liang, Junxuan and Zheng, Zilong and Ma, Ziyang and Chen, Xie},
   journal      = {arXiv preprint arXiv:2611.08251},
   year         = {2026}
 }
