@@ -50,6 +50,7 @@ def make_record(tmp_path: Path, record_id: str, edited_text: str) -> dict:
         sf.write(audio_path, 0.05 * np.sin(2 * np.pi * 220 * np.arange(32000) / 16000), 16000)
     return {
         "id": record_id,
+        "task": "single_span",
         "language": "en",
         "audio_path": str(audio_path),
         "align_word": [["We", 0.1, 0.5], ["go", 0.5, 0.9], ["home", 0.9, 1.5], ["now", 1.5, 1.9]],

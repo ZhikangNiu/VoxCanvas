@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dotenv import find_dotenv, load_dotenv
 from tqdm import tqdm
 
-from voxcanvas.annotate import boundary, content, occurrence, timestamp
+from voxcanvas.annotate import boundary, content, nonverbal, occurrence, timestamp
 from voxcanvas.annotate.llm import LLMClient
 from voxcanvas.annotate.records import SUBSETS_OF_TASK, record_id, stratified_sample
 from voxcanvas.text import gate
@@ -26,7 +26,11 @@ def main() -> None:
     )
     parser.add_argument("--task", required=True, choices=list(SUBSETS_OF_TASK))
     parser.add_argument("--subset", required=True, help="subset of the task, e.g. deletion, multi, d4, l_t_m")
-    parser.add_argument("--input", required=True, help="aligned rows (jsonl, output of voxcanvas.align)")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="aligned rows (jsonl, output of voxcanvas.align; with --use-transcript for the nonverbal task)",
+    )
     parser.add_argument("--output", required=True, help="edit records (jsonl); appended, finished ids are skipped")
     parser.add_argument(
         "--num-samples",
@@ -62,7 +66,11 @@ def main() -> None:
     logger.setLevel(logging.INFO)
     load_dotenv(find_dotenv(usecwd=True))
 
-    generator = next(module for module in GENERATORS if args.subset in module.SUBSETS)
+    # nonverbal shares the subset name "insertion" with single_span, so it is picked by task.
+    if args.task == "nonverbal":
+        generator = nonverbal
+    else:
+        generator = next(module for module in GENERATORS if args.subset in module.SUBSETS)
     llm = None
     if args.subset in generator.NEEDS_LLM:
         api_key = os.environ.get(args.api_key_env)
@@ -71,6 +79,8 @@ def main() -> None:
         llm = LLMClient(args.base_url, args.model, api_key, extra_body=args.extra_body)
 
     rows = list(read_jsonl(args.input))
+    if args.task == "nonverbal":
+        rows = [split for row in rows for split in nonverbal.split_by_tag(row)]
     check_uuids(rows, args.input)
     num_gated = 0
     candidates = []

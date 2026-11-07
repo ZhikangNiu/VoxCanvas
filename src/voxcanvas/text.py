@@ -32,6 +32,9 @@ EN_DUPLICATE_RE = re.compile(r"\b(\w+)\s+\1\b", re.IGNORECASE)
 HOMOPHONE_GROUPS = ("他她它", "的地得", "在再", "做作", "座坐", "那哪", "了啦", "吗嘛", "呢呐", "和合")
 EDIT_OPS = ("deletion", "insertion", "substitution")
 MIN_CONTENT_TOKENS = 4  # content tokens a row needs to pass the gate
+# Nonverbal event tag in a given transcript, e.g. "[laugh]"; "[UNK]" is an ASR placeholder, not an event.
+NV_TAG_RE = re.compile(r"\[(?!UNK\])[^\[\]]+\]")
+SPACE_FREE_PUNCT = ",.!?;:"  # en punctuation that takes no space before it
 
 
 def tokenize_content(text: str, lang: str) -> list[tuple[str, int, int]]:
@@ -55,6 +58,32 @@ def tokenize_content(text: str, lang: str) -> list[tuple[str, int, int]]:
         )
         tokens += [(word, start + s, start + e) for word, s, e in found if CONTENT_CHAR_RE.search(word)]
     return tokens
+
+
+def strip_nv_tags(text: str, lang: str, tags: set[str] | None = None) -> tuple[str, list[tuple[str, int]]]:
+    """Remove the nonverbal tags of `text` (all, or those named in `tags`); return the text and (tag, offset) per tag.
+
+    The offset is where the tag stood in the returned text. en pieces are rejoined with one space unless the right piece
+    starts with punctuation, so "get[laugh]any" stays two words; zh pieces are concatenated.
+    """
+    stripped, removed, pos = "", [], 0
+    for m in NV_TAG_RE.finditer(text):
+        tag = m.group()[1:-1]
+        if tags is not None and tag not in tags:
+            continue
+        stripped = join_pieces(stripped, text[pos : m.start()], lang)
+        removed.append((tag, len(stripped.rstrip())))
+        pos = m.end()
+    return join_pieces(stripped, text[pos:], lang).rstrip(), removed
+
+
+def join_pieces(left: str, right: str, lang: str) -> str:
+    if not left or lang != "en":
+        return left + right if left else right.lstrip()
+    left, right = left.rstrip(), right.lstrip()
+    if not left or not right or right[0] in SPACE_FREE_PUNCT:
+        return left + right
+    return left + " " + right
 
 
 def segment_ids(text: str, tokens: list[tuple[str, int, int]]) -> list[int]:

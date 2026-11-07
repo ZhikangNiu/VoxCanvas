@@ -24,7 +24,8 @@ STUB_STAGE = (
 )
 # Downloader stub (hf, uvx) that logs its working directory, Hugging Face endpoint settings and argv.
 STUB_DOWNLOADER = 'echo "$PWD|${HF_ENDPOINT:-}|${HF_HUB_DISABLE_IMPLICIT_TOKEN:-}|$(basename "$0") $*" >> "$STUB_LOG"'
-EXPECTED_SUBSETS = {task: set(subsets) for task, subsets in SUBSETS_OF_TASK.items()}
+# The nonverbal task has its own mini set and script (tests/test_nonverbal.py).
+EXPECTED_SUBSETS = {task: set(subsets) for task, subsets in SUBSETS_OF_TASK.items() if task != "nonverbal"}
 
 
 def test_manifest_clips() -> None:

@@ -85,6 +85,7 @@ def test_asr_cli_scores_ok_rows_passes_others_and_resumes(tmp_path: Path, monkey
         {"id": "r3", "status": "ok", "synthetic_audio": "b.wav", "edited_text": "你好，世界。", "language": "zh"},
         {"id": "r4", "status": "ok", "synthetic_audio": "c.wav", "edited_text": "hello world", "language": "en"},
     ]
+    rows = [{**row, "task": "single_span"} for row in rows]
     write_jsonl(tmp_path / "in.jsonl", rows)
     output = tmp_path / "out.jsonl"
     write_jsonl(output, [{**rows[0], "asr_text": "done before", "asr_score": 0.0}])
@@ -110,6 +111,7 @@ def test_asr_cli_writes_every_other_row_and_retries_an_unreadable_wav(
         {"id": "r2", "status": "no_context", "synthetic_audio": "", "edited_text": "x", "language": "en"},
         {"id": "r3", "status": "ok", "synthetic_audio": "b.wav", "edited_text": "你好，世界。", "language": "zh"},
     ]
+    rows = [{**row, "task": "single_span"} for row in rows]
     write_jsonl(tmp_path / "in.jsonl", rows)
     output = tmp_path / "out.jsonl"
     monkeypatch.setattr(asr, "Qwen3ASRModel", FakeASRModel)
@@ -145,7 +147,8 @@ def run_asr_shards(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rows: list[d
 
 def test_asr_cli_shards_by_id_hash_and_resumes_a_grown_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def make_row(row_id: str) -> dict:
-        return {"id": row_id, "status": "ok", "synthetic_audio": "a.wav", "edited_text": "hello", "language": "en"}
+        row = {"id": row_id, "status": "ok", "synthetic_audio": "a.wav", "edited_text": "hello", "language": "en"}
+        return {**row, "task": "single_span"}
 
     rows = [make_row(f"b/u{i}") for i in range(40)]
     assert sorted(run_asr_shards(tmp_path, monkeypatch, rows, num_shards=4)) == sorted(row["id"] for row in rows)
@@ -181,7 +184,7 @@ def test_asr_cli_skips_model_when_all_done(tmp_path: Path, monkeypatch: pytest.M
 def test_asr_cli_loads_the_downloaded_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     row = {"id": "r0", "status": "ok", "synthetic_audio": "a.wav", "edited_text": "hello world", "language": "en"}
-    write_jsonl(tmp_path / "in.jsonl", [row])
+    write_jsonl(tmp_path / "in.jsonl", [{**row, "task": "single_span"}])
     loaded = []
 
     def from_pretrained(path: str, **kwargs: object) -> FakeASRModel:

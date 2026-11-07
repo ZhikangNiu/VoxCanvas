@@ -32,6 +32,7 @@ src/voxcanvas/
     occurrence.py          repeated words: d1 d4 m1 m2 i1 i2
     boundary.py            sentence head / tail: l_d l_m l_i
     timestamp.py           time point / interval: l_t_d l_t_m l_t_i
+    nonverbal.py           nonverbal events: delete every [tag] of one type
     templates.py           instruction templates (zh / en)
     prompts.py             LLM prompts
     llm.py                 OpenAI-compatible client, LLM replacement / insertion generation
@@ -45,9 +46,11 @@ src/voxcanvas/
 scripts/
   download_checkpoints.sh  model checkpoints from Hugging Face or ModelScope
   run_mini_pipeline.sh     all stages on the mini set, one GPU
+  run_mini_nonverbal.sh    nonverbal editing on the mini nonverbal set, one GPU
   run_sharded.sh           one process per GPU for a GPU stage, then merge
 checkpoints/               downloaded model checkpoints (git-ignored)
 examples/mini/             20 Emilia clips (10 zh, 10 en), manifest and precomputed alignment
+examples/mini_nonverbal/   20 NonVerbalSpeech-38K clips with tagged transcripts
 docs/pipeline.md           algorithms, formats, differences from the release
 tests/                     pytest suite
 third_party/F5-TTS         F5-TTS v1.1.20 (git submodule)
@@ -184,6 +187,12 @@ If you already have aligned rows (manifest fields plus `text` and `align_word`, 
 [docs/pipeline.md §8](docs/pipeline.md#8-data-formats)), skip `align` with
 `SKIP_ALIGN=1 ALIGNED_JSONL=data/my_aligned.jsonl`.
 
+### Nonverbal editing
+
+Add the tagged transcript to each manifest row (`"transcript": "那是[sniff]传说中的此莲真火。"`) and run
+`scripts/run_mini_nonverbal.sh` with `MANIFEST_JSONL` / `OUTPUT_DIR`; `examples/mini_nonverbal/` is a ready-made input.
+See [docs/pipeline.md §4.8](docs/pipeline.md#48-nonverbal).
+
 ## Running at scale
 
 VoxCanvas-41M was built from the ZH and EN subsets of the original
@@ -241,5 +250,6 @@ as well.
 
 ## License
 
-The code is released under the [MIT License](LICENSE). Data, including `examples/mini/` and anything built with this
-pipeline, follows the license of its source corpus (Emilia: CC BY-NC 4.0).
+The code is released under the [MIT License](LICENSE). Data, including `examples/mini/`, `examples/mini_nonverbal/`
+and anything built with this pipeline, follows the license of its source corpus (Emilia, NonVerbalSpeech-38K:
+CC BY-NC 4.0).

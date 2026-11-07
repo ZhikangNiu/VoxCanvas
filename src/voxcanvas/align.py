@@ -2,13 +2,15 @@ import argparse
 import json
 import logging
 import time
+from collections.abc import Callable
 
 import torch
 from audioread.exceptions import DecodeError
-from qwen_asr import Qwen3ASRModel
+from qwen_asr import Qwen3ASRModel, Qwen3ForcedAligner
 from qwen_asr.inference.qwen3_asr import ASRTranscription
 from tqdm import tqdm
 
+from voxcanvas.text import strip_nv_tags
 from voxcanvas.utils import LOG_FORMAT, check_checkpoints, check_uuids, read_jsonl, read_shard
 
 
@@ -20,25 +22,48 @@ LANGUAGES = {"zh": "Chinese", "en": "English"}
 TRANSCRIBE_ERRORS = (torch.OutOfMemoryError, OSError, DecodeError)
 
 
-def transcribe_clips(
-    model: Qwen3ASRModel, audio: list[str], language: list[str | None], return_time_stamps: bool
-) -> list[ASRTranscription | None]:
-    """Transcribe a batch of audio paths; on failure retry clip by clip, None for clips that still fail."""
+def retry_clips(run: Callable[..., list], audio: list[str], *columns: list) -> list:
+    """`run(audio, *columns)` on a batch; on failure retry clip by clip, None for clips that still fail."""
     try:
-        return model.transcribe(audio=audio, language=language, return_time_stamps=return_time_stamps)
+        return run(audio, *columns)
     except TRANSCRIBE_ERRORS as e:
         logger.warning(f"Batch of {len(audio)} failed ({e!r}); retrying one by one")
     # Retry outside the except block so the failed batch's tensors are released first.
     results = []
-    for path, clip_language in zip(audio, language, strict=True):
+    for clip in zip(audio, *columns, strict=True):
         try:
-            results.extend(
-                model.transcribe(audio=[path], language=[clip_language], return_time_stamps=return_time_stamps)
-            )
+            results.extend(run(*([value] for value in clip)))
         except TRANSCRIBE_ERRORS as e:
-            logger.error(f"Transcription failed for {path}: {e!r}")
+            logger.error(f"Failed on {clip[0]}: {e!r}")
             results.append(None)
     return results
+
+
+def transcribe_clips(
+    model: Qwen3ASRModel, audio: list[str], language: list[str | None], return_time_stamps: bool
+) -> list[ASRTranscription | None]:
+    """Transcribe a batch of audio paths; on failure retry clip by clip, None for clips that still fail."""
+    return retry_clips(
+        lambda audio, language: model.transcribe(audio=audio, language=language, return_time_stamps=return_time_stamps),
+        audio,
+        language,
+    )
+
+
+def align_transcripts(
+    aligner: Qwen3ForcedAligner, audio: list[str], texts: list[str], language: list[str]
+) -> list[ASRTranscription | None]:
+    """Force-align given transcripts, wrapped like ASR results; on failure retry clip by clip, None if still failing."""
+    results = retry_clips(
+        lambda audio, texts, language: aligner.align(audio=audio, text=texts, language=language),
+        audio,
+        texts,
+        language,
+    )
+    return [
+        None if result is None else ASRTranscription(language=clip_language, text=text, time_stamps=result)
+        for result, text, clip_language in zip(results, texts, language, strict=True)
+    ]
 
 
 def to_aligned_row(row: dict, result: ASRTranscription) -> dict | None:
@@ -53,13 +78,18 @@ def to_aligned_row(row: dict, result: ASRTranscription) -> dict | None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="python -m voxcanvas.align",
-        description="Re-transcribe clips with Qwen3-ASR and add word timestamps.",
+        description="Re-transcribe clips with Qwen3-ASR (or take their given transcripts) and add word timestamps.",
     )
     parser.add_argument("--input", required=True, help="manifest jsonl with uuid, audio_path, language")
     parser.add_argument("--output", required=True, help="aligned jsonl (appended to; resumes by uuid)")
     parser.add_argument("--asr-model", default="checkpoints/Qwen3-ASR-1.7B", help="local directory or Hugging Face id")
     parser.add_argument(
         "--aligner-model", default="checkpoints/Qwen3-ForcedAligner-0.6B", help="local directory or Hugging Face id"
+    )
+    parser.add_argument(
+        "--use-transcript",
+        action="store_true",
+        help="skip ASR and force-align the manifest 'transcript' with its nonverbal [tags] removed",
     )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-new-tokens", type=int, default=1024)
@@ -78,16 +108,25 @@ def main() -> None:
     if unknown:
         raise ValueError(f"Unsupported languages {sorted(unknown)}; expected one of {sorted(LANGUAGES)}")
 
-    check_checkpoints(args.asr_model, args.aligner_model)
-    model = Qwen3ASRModel.from_pretrained(
-        args.asr_model,
-        dtype=torch.bfloat16,
-        device_map="cuda",
-        forced_aligner=args.aligner_model,
-        forced_aligner_kwargs={"dtype": torch.bfloat16, "device_map": "cuda"},
-        max_inference_batch_size=args.batch_size,
-        max_new_tokens=args.max_new_tokens,
-    )
+    if args.use_transcript:
+        texts = {row["uuid"]: strip_nv_tags(row["transcript"], row["language"])[0] for row in todo}
+        for row in todo:
+            if not texts[row["uuid"]]:
+                logger.warning(f"Skipping {row['uuid']}: no speech left in its transcript")
+        todo = [row for row in todo if texts[row["uuid"]]]
+        check_checkpoints(args.aligner_model)
+        model = Qwen3ForcedAligner.from_pretrained(args.aligner_model, dtype=torch.bfloat16, device_map="cuda")
+    else:
+        check_checkpoints(args.asr_model, args.aligner_model)
+        model = Qwen3ASRModel.from_pretrained(
+            args.asr_model,
+            dtype=torch.bfloat16,
+            device_map="cuda",
+            forced_aligner=args.aligner_model,
+            forced_aligner_kwargs={"dtype": torch.bfloat16, "device_map": "cuda"},
+            max_inference_batch_size=args.batch_size,
+            max_new_tokens=args.max_new_tokens,
+        )
 
     num_written = 0
     start_time = time.perf_counter()
@@ -96,7 +135,10 @@ def main() -> None:
             batch = todo[start : start + args.batch_size]
             audio = [row["audio_path"] for row in batch]
             language = [LANGUAGES[row["language"]] for row in batch]
-            results = transcribe_clips(model, audio, language, return_time_stamps=True)
+            if args.use_transcript:
+                results = align_transcripts(model, audio, [texts[row["uuid"]] for row in batch], language)
+            else:
+                results = transcribe_clips(model, audio, language, return_time_stamps=True)
             for row, result in zip(batch, results, strict=True):
                 aligned = None if result is None else to_aligned_row(row, result)
                 if aligned is None:

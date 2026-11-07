@@ -11,6 +11,7 @@ from qwen_asr import Qwen3ASRModel
 from tqdm import tqdm
 
 from voxcanvas.align import transcribe_clips
+from voxcanvas.text import strip_nv_tags
 from voxcanvas.utils import LOG_FORMAT, check_checkpoints, read_shard
 
 
@@ -73,7 +74,11 @@ def main() -> None:
                         num_failed += 1
                         continue
                     row["asr_text"] = result.text
-                    row["asr_score"] = compute_asr_score(row["edited_text"], result.text, row["language"])
+                    reference = row["edited_text"]
+                    # Nonverbal rows keep the tags of other event types in edited_text; they are not speech.
+                    if row["task"] == "nonverbal":
+                        reference = strip_nv_tags(reference, row["language"])[0]
+                    row["asr_score"] = compute_asr_score(reference, result.text, row["language"])
                 fout.write(json.dumps(row, ensure_ascii=False) + "\n")
             fout.flush()
     if num_failed:
