@@ -21,6 +21,15 @@ real speech (Emilia) in five stages:
 The algorithms, data formats and every difference from the released data are documented in
 [docs/pipeline.md](docs/pipeline.md).
 
+## 🔥 News
+
+- **2026.11.07**: The paralinguistic (nonverbal) editing pipeline is released
+  ([5fdb90e](https://github.com/ZhikangNiu/VoxCanvas/commit/5fdb90eae4d60925e6e82c422d2da9957dccb372)); see
+  [Nonverbal editing](#nonverbal-editing).
+- **2026.11.07**: [VoxCanvas-41M](https://huggingface.co/datasets/zkniu/VoxCanvas) is fully uploaded, including the
+  paralinguistic subset.
+- **2026.11.05**: We release the speech-editing data pipeline; the dataset is being uploaded.
+
 ## Repository layout
 
 ```
