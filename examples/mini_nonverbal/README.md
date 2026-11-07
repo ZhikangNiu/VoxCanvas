@@ -58,9 +58,9 @@ checkpoints in `checkpoints/` (see [Checkpoints](../../README.md#checkpoints)):
 bash scripts/run_mini_nonverbal.sh
 ```
 
-The captions are not Qwen3-ASR transcripts, so the exact-match ASR filter of `export` drops pairs whose speech is
-fine (e.g. 啊 / 哈, Mina / Minna); `MAX_ASR_SCORE=0.1 bash scripts/run_mini_nonverbal.sh` relaxes it (see
-[docs/pipeline.md](../../docs/pipeline.md) §6).
+The captions are not Qwen3-ASR transcripts, so the exact-match ASR filter of `export` also drops some pairs whose
+speech is fine (e.g. 啊 / 哈, Mina / Minna); set `MAX_ASR_SCORE` to relax it (see
+[docs/pipeline.md §4.8](../../docs/pipeline.md#48-nonverbal)).
 
 ## Attribution and license
 

@@ -135,7 +135,7 @@ times faster but needs a separate environment (vLLM pins a different torch than 
 | Location: all occurrences | `location_reference` | `d1` `m1` `i1` | delete / replace / insert at every occurrence | m1, i1 | forward |
 | Location: sentence boundary | `location_reference` | `l_d` `l_m` `l_i` | delete 1-6 words / replace / insert at the sentence head or tail | l_m, l_i | forward |
 | Location: time | `location_reference` | `l_t_d` `l_t_m` `l_t_i` | delete / replace / insert at a time point or interval | l_t_m, l_t_i | forward |
-| Paralinguistic insertion / deletion | - | - | not in this repository | - | - |
+| Paralinguistic insertion / deletion | `nonverbal` | `insertion` | delete every `[tag]` of one nonverbal event type (§4.8) | no | reversed |
 
 Each pair has a forward instruction (original audio -> synthetic audio) and, for single-span and multi-span, a reverse
 instruction (synthetic audio -> original audio). In the release, single-span and multi-span pairs are trained
@@ -356,6 +356,30 @@ Shared rules:
 - No reverse instruction. `meta` = `{"locator": "timestamp", "mode", "has_word", "t_start", "t_end", "token_range":
   [lo, hi]}`. Length bucket: l_t_d by deleted words (`1`..`4`, `5+`), l_t_m / l_t_i by sentence length.
 
+### 4.8 Nonverbal
+
+Paralinguistic pairs delete nonverbal events from real speech and, like single-span pairs, are trained reversed
+(synthetic -> real, `Add '[laugh]' before ...`).
+
+- **Input**: manifest rows add `"transcript"`, the transcript with events marked as `[tag]` (any name but `UNK`).
+  `align --use-transcript` skips ASR and force-aligns the transcript with its tags removed (en: a removed tag leaves one
+  space), so `text` is the tag-free transcript.
+- **Records** (`--task nonverbal --subset insertion`, no LLM): one record per tag type of a row, deleting every
+  instance of it; the uuid gets `_{tag}` when the row has several types. `original_text` is the tagged transcript,
+  `edited_text` drops this tag type only, `edit_type` is `insertion` (the trained direction, as in the release), and
+  `meta` = `{"nv_tag", "gaps"}` (number of aligned words before each instance).
+- **Instructions**: `Delete the '[t]' before|after 'A'.` / `删除‘A’前面|后面的‘[t]’` and the reverse `Add '[t]' ...` /
+  `在‘A’前面|后面加上‘[t]’`, one clause per run of adjacent instances. The anchor `A` is 3 words (en) / 4 characters
+  (zh) next to the run, extended until unique; the side touching the tag is preferred, then "before".
+- **Synthesis**: each event takes the gap between its neighbouring aligned words (widened to at least 0.2 s, padded by
+  0.1 s) and is replaced by `clip(0.4 * gap, 0.2, 0.7)` s of generated audio (0.15 s at the clip edges); events that
+  cannot be placed get status `unlocated`. F5-TTS gets the text without tags; the synthesized row adds `nv_segments`.
+- **Verify**: the ASR reference is `edited_text` without tags. Corpus transcripts are not Qwen3-ASR output, so the
+  exact-match filter of §6 also drops some correct pairs; relax `--max-asr-score` if needed.
+- **Differences from the release**: the release removed tags without spaces in en (`get[laugh]any` -> `getany`), may
+  anchor on the other side where both sides qualify, and also has natural-language instructions
+  (`extra.delete_instruction` / `extra.add_instruction`), which are not generated here.
+
 ## 5. Stage 2: synthesize
 
 `python -m voxcanvas.synthesize --input edits.jsonl --output synth.jsonl --audio-dir DIR
@@ -533,8 +557,7 @@ Measured effects come from comparisons against the production code and data on E
   instead of the release's per-task keys (single-span `fix_duration`; multi-span `edit_types` / `sub_edits` /
   `edited_asr_text`; location-reference `locator` / `align_word` / `edited_asr_text`), so code written against the
   release that reads `extra["locator"]`, `extra["sub_edits"]` or `extra["edited_asr_text"]` needs adapting.
-- **Paralinguistic editing** (39 nonverbal event classes, Table 1 rows "Paralinguistic") and **multi-turn / history
-  editing** are not included.
+- **Multi-turn / history editing** is not included.
 - Human spot checks.
 
 ### 9.2 Instruction format notes
