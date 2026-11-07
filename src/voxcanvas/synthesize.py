@@ -18,7 +18,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 from vocos import Vocos
 
-from voxcanvas.text import normalize_align_tokens, tokenize_aligned
+from voxcanvas.text import normalize_align_tokens, strip_nv_tags, tokenize_aligned
 from voxcanvas.utils import LOG_FORMAT, check_checkpoints, read_shard, rng_for
 
 
@@ -32,6 +32,13 @@ MAX_FRAMES = 8192  # DiT text position table (~87 s); CFM.sample needs one frame
 FRAMES_PER_SEC = target_sample_rate / hop_length  # 93.75 mel frames per second
 # (lower clamp, upper clamp, fallback) of the seconds per inserted token.
 SECONDS_PER_TOKEN = {"zh": (0.08, 0.32, 0.2), "en": (0.1, 0.45, 0.24)}
+NV_MIN_GAP_SEC = 0.2  # narrower word gaps are widened toward the neighbouring words' midpoints
+NV_MIN_SPAN_SEC = 0.05  # a widened head / tail gap narrower than this is unreliable
+NV_PAD_SEC = 0.1  # added on each side of a located event
+NV_MIN_SEC = 0.25  # shortest deleted region
+NV_FIX_RATIO, NV_FIX_SEC = 0.4, (0.2, 0.7)  # filler of a mid-sentence event: ratio of its gap, clamped
+NV_EDGE_FIX_SEC = 0.15  # filler of an event at the start or end of the clip
+NV_STATUS_RANK = {"ok": 0, "fallback": 1, "unreliable": 2}
 
 
 def build_edit_plan(
@@ -78,13 +85,71 @@ def build_edit_plan(
         else:
             merged.append([start, end, target])
 
+    return lay_out_parts(merged)
+
+
+def lay_out_parts(segments: list[list[float]]) -> tuple[list[list[float]], list[list[float]], list[float]]:
+    """(source_parts, parts_to_edit, fix_duration) of sorted, disjoint [start, end, target] segments."""
     source_parts, parts_to_edit, fix_duration, shift = [], [], [], 0.0
-    for start, end, target in merged:
+    for start, end, target in segments:
         source_parts.append([start, end])
         parts_to_edit.append([start + shift, start + shift + target])
         fix_duration.append(target)
         shift += target - max(end - start, 0.0)
     return source_parts, parts_to_edit, fix_duration
+
+
+def locate_nv_segments(align_word: list[list], gaps: list[int], tag: str, audio_duration: float) -> list[dict]:
+    """Audio segments of the nonverbal events in the word gaps `gaps` (gap i lies before align_word[i]).
+
+    Each event takes its whole gap, widened when narrower than NV_MIN_GAP_SEC (status "fallback", or "unreliable" if
+    no room is left), then is padded; overlapping segments merge with the larger filler and the worse status.
+    """
+    num_words = len(align_word)
+    found = []
+    for gap in gaps:
+        status = "ok"
+        if gap == 0:
+            start, end = 0.0, align_word[0][1]
+            if end - start < NV_MIN_GAP_SEC:
+                end = min((align_word[0][1] + align_word[0][2]) / 2, NV_MIN_GAP_SEC)
+                status = "unreliable" if end - start < NV_MIN_SPAN_SEC else "fallback"
+        elif gap == num_words:
+            start, end = align_word[-1][2], audio_duration
+            if end - start < NV_MIN_GAP_SEC:
+                start = max((align_word[-1][1] + align_word[-1][2]) / 2, align_word[-1][2] - NV_MIN_GAP_SEC)
+                status = "unreliable" if end - start < NV_MIN_SPAN_SEC else "fallback"
+        else:
+            (_, left_start, start), (_, end, right_end) = align_word[gap - 1], align_word[gap]
+            if end - start < NV_MIN_GAP_SEC:
+                center = (start + end) / 2
+                start = max((left_start + start) / 2, center - NV_MIN_GAP_SEC / 2)
+                end = min((end + right_end) / 2, center + NV_MIN_GAP_SEC / 2)
+                status = "fallback" if end > start else "unreliable"
+                if end < start:
+                    start = end = center
+        if gap in (0, num_words):
+            fix_dur = NV_EDGE_FIX_SEC
+        else:
+            fix_dur = round(min(max(NV_FIX_RATIO * (end - start), NV_FIX_SEC[0]), NV_FIX_SEC[1]), 3)
+        start, end = max(0.0, start - NV_PAD_SEC), min(audio_duration, end + NV_PAD_SEC)
+        if end - start < NV_MIN_SEC:
+            start = max(0.0, (start + end - NV_MIN_SEC) / 2)
+            end = min(audio_duration, start + NV_MIN_SEC)
+            start = max(0.0, end - NV_MIN_SEC)
+        found.append({"start": start, "end": end, "fix_dur": fix_dur, "status": status, "tag": tag})
+
+    merged = []
+    for segment in sorted(found, key=lambda segment: segment["start"]):
+        if merged and segment["start"] <= merged[-1]["end"] + 1e-3:
+            last = merged[-1]
+            last["tag"] += "+" + segment["tag"]
+            last["end"] = max(last["end"], segment["end"])
+            last["fix_dur"] = max(last["fix_dur"], segment["fix_dur"])
+            last["status"] = max(last["status"], segment["status"], key=NV_STATUS_RANK.__getitem__)
+        else:
+            merged.append(segment)
+    return merged
 
 
 def build_adjusted_mel(
@@ -128,7 +193,8 @@ def synthesize_record(
     """Return `record` plus status, synthetic_audio, durations and edit_regions; writes the wav when status is ok.
 
     Status: no_change (no spoken token changed), too_long (more than MAX_FRAMES), no_context (the widened edit mask
-    covers every frame), ok. None if the source file does not exist. The wav goes to `<audio_dir>/<id>.wav`.
+    covers every frame), unlocated (nonverbal: an event could not be placed in the audio), ok. None if the source file
+    does not exist. The wav goes to `<audio_dir>/<id>.wav`. Nonverbal rows also get "nv_segments".
     """
     row = {
         **record,
@@ -152,9 +218,25 @@ def synthesize_record(
     audio_duration = audio.shape[1] / target_sample_rate
     row["original_duration"] = round(audio_duration, 4)
 
-    source_parts, parts_to_edit, fix_duration = build_edit_plan(
-        record["align_word"], record["edited_text"], record["language"]
-    )
+    if record["task"] == "nonverbal":
+        segments = locate_nv_segments(
+            record["align_word"], record["meta"]["gaps"], record["meta"]["nv_tag"], audio_duration
+        )
+        row["nv_segments"] = [
+            {**segment, "start": round(segment["start"], 4), "end": round(segment["end"], 4)} for segment in segments
+        ]
+        if any(segment["status"] == "unreliable" for segment in segments):
+            return {**row, "status": "unlocated"}
+        source_parts, parts_to_edit, fix_duration = lay_out_parts(
+            [[segment["start"], segment["end"], segment["fix_dur"]] for segment in segments]
+        )
+        # F5-TTS reads tags as letters; the remaining tags of other types stay in the audio as they are.
+        gen_text = strip_nv_tags(record["edited_text"], record["language"])[0]
+    else:
+        source_parts, parts_to_edit, fix_duration = build_edit_plan(
+            record["align_word"], record["edited_text"], record["language"]
+        )
+        gen_text = record["edited_text"]
     if not source_parts:
         return {**row, "status": "no_change"}
     with torch.inference_mode():
@@ -170,7 +252,7 @@ def synthesize_record(
     with torch.inference_mode():
         generated, _ = model.sample(
             cond=cond,
-            text=convert_char_to_pinyin([record["edited_text"]]),
+            text=convert_char_to_pinyin([gen_text]),
             duration=cond.shape[1],
             steps=nfe_step,
             cfg_strength=cfg_strength,

@@ -1,0 +1,28 @@
+License of the data in examples/mini_nonverbal/
+===============================================
+
+The files in this directory (audio/*.wav, manifest.jsonl, aligned.jsonl and the clip table in README.md)
+are derived from the NonVerbalSpeech-38K (NVS-38K) dataset and are licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0), the license of NonVerbalSpeech-38K:
+https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+The MIT License of the code in this repository does not apply to these files.
+
+Source
+  NonVerbalSpeech-38K, https://huggingface.co/datasets/nonverbalspeech/nonverbalspeech38k
+  "NonVerbalSpeech-38K: A Scalable Pipeline for Enabling Non-Verbal Speech Generation and Understanding."
+  Demo page: https://nonverbalspeech38k.github.io/nonverspeech38k/
+
+Changes
+  The audio clips are unmodified copies of 20 NonVerbalSpeech-38K clips (10 ZH and 10 EN). The transcripts
+  are the NonVerbalSpeech-38K captions with the tags [laughing] and [coughing] renamed to [laugh] and [cough].
+  The tag-stripped transcripts and word timestamps in aligned.jsonl are new: they were produced by the
+  align stage of this repository.
+
+Disclaimer reproduced from the NonVerbalSpeech-38K dataset card
+  "Disclaimer: The NVS-38K dataset does not own the copyrights of the audio files it contains; copyright
+  ownership resides with the original creators. The dataset is made available solely for non-commercial
+  research purposes under the Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+  license."
+
+Use of these files is also subject to the terms of access shown on the dataset page above.

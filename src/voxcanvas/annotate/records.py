@@ -6,6 +6,7 @@ SUBSETS_OF_TASK = {
     "single_span": ("deletion", "insertion", "substitution"),
     "multi_span": ("multi",),
     "location_reference": ("d1", "d4", "m1", "m2", "i1", "i2", "l_d", "l_m", "l_i", "l_t_d", "l_t_m", "l_t_i"),
+    "nonverbal": ("insertion",),
 }
 EDIT_TYPES = (*EDIT_OPS, "multi")
 SENTENCE_LENGTH_BOUNDS = (4, 8, 16)  # sentence content tokens: "4-7", "8-15", "16+"
@@ -31,16 +32,18 @@ def build_record(
     reverse_instruction: str | None,
     edits: list[dict],
     meta: dict | None = None,
+    original_text: str | None = None,
 ) -> dict | None:
     """Edit record (docs/pipeline.md §8.3) for an aligned row; `edits` are sorted by region start.
 
     None when the edits re-tokenize the text outside their regions (`text.edit_keeps_alignment`), which would move
-    the synthesized span onto words the instruction does not name.
+    the synthesized span onto words the instruction does not name. `original_text` (nonverbal: the tagged transcript
+    the edits refer to) replaces row["text"] and skips that check, as its edits remove tags, never words.
     """
     assert subset in SUBSETS_OF_TASK[task] and edit_type in EDIT_TYPES, (task, subset, edit_type)
     assert all(edit["op"] in EDIT_OPS for edit in edits), edits
     assert (reverse_instruction is None) == (task == "location_reference"), (task, reverse_instruction)
-    if not edit_keeps_alignment(row["text"], edited_text, edits, row["language"]):
+    if original_text is None and not edit_keeps_alignment(row["text"], edited_text, edits, row["language"]):
         return None
     return {
         "id": record_id(task, subset, row["uuid"]),
@@ -51,7 +54,7 @@ def build_record(
         "uuid": row["uuid"],
         "audio_path": row["audio_path"],
         "align_word": row["align_word"],
-        "original_text": row["text"],
+        "original_text": row["text"] if original_text is None else original_text,
         "edited_text": edited_text,
         "instruction": instruction,
         "reverse_instruction": reverse_instruction,

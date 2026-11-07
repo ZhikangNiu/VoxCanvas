@@ -11,6 +11,7 @@ from conftest import write_jsonl
 from openai.resources.chat.completions import Completions
 
 from voxcanvas.annotate import __main__ as cli
+from voxcanvas.annotate import nonverbal
 from voxcanvas.annotate.llm import LLMClient, draw_answer
 from voxcanvas.annotate.records import SUBSETS_OF_TASK, build_record
 from voxcanvas.annotate.templates import DELETION
@@ -167,4 +168,6 @@ def test_cli_rejects_duplicate_uuids(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_generators_cover_every_subset_exactly_once() -> None:
     generated = sorted(subset for module in cli.GENERATORS for subset in module.SUBSETS)
-    assert generated == sorted(subset for subsets in SUBSETS_OF_TASK.values() for subset in subsets)
+    content_tasks = [subsets for task, subsets in SUBSETS_OF_TASK.items() if task != "nonverbal"]
+    assert generated == sorted(subset for subsets in content_tasks for subset in subsets)
+    assert nonverbal.SUBSETS == SUBSETS_OF_TASK["nonverbal"]
