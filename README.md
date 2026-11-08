@@ -23,6 +23,10 @@ The algorithms, data formats and every difference from the released data are doc
 
 ## 🔥 News
 
+- **2026.11.08**: [Refined Emilia transcripts](https://huggingface.co/datasets/zkniu/VoxCanvas#refined-emilia-transcripts)
+  are uploaded: the Emilia audio in six languages (zh, en, ja, fr, ko, de) re-transcribed with Qwen3-ASR-1.7B, with
+  word- or character-level timestamps from Qwen3-ForcedAligner-0.6B. Text only; the transcripts can also be used for
+  TTS training.
 - **2026.11.07**: The paralinguistic (nonverbal) editing pipeline is released
   ([5fdb90e](https://github.com/ZhikangNiu/VoxCanvas/commit/5fdb90eae4d60925e6e82c422d2da9957dccb372)); see
   [Nonverbal editing](#nonverbal-editing).
